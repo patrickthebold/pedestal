@@ -12,7 +12,9 @@
 
 (ns io.pedestal.interceptor
   "Public API for creating interceptors, and various utility fns for
-  common interceptor creation patterns.")
+  common interceptor creation patterns."
+  (:require [clojure.core.async.impl.protocols]
+            [clojure.core.async :as a]))
 
 (defrecord Interceptor [name enter leave error])
 
@@ -38,7 +40,11 @@
               (:interceptorfn int-meta))
         (interceptor (t))
         (interceptor {:enter (fn [context]
-                               (assoc context :response (t (:request context))))}))))
+                               (let [include-fn (partial assoc context :response)
+                                     response (t (:request context))]
+                                 (if (satisfies? clojure.core.async.impl.protocols/ReadPort response)
+                                   (a/pipe response (a/chan 1 (map include-fn)))
+                                   (assoc context :response response))))}))))
 
   clojure.lang.IPersistentList
   (-interceptor [t] (interceptor (eval t)))
